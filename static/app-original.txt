@@ -1,0 +1,148 @@
+(() => {
+  const form = document.querySelector('#upload-form');
+  const input = document.querySelector('#project-zip');
+  const button = document.querySelector('#analyze-button');
+  const status = document.querySelector('#status');
+  const workspace = document.querySelector('#workspace');
+  const fileTree = document.querySelector('#file-tree');
+  const relationships = document.querySelector('#relationships');
+  const impactResults = document.querySelector('#impact-results');
+  const selectedName = document.querySelector('#selected-name');
+  const warnings = document.querySelector('#warnings');
+  const API_BASE = window.REPOPILOT_API_BASE || '';
+  let sessionId = null;
+  let currentAnalysis = null;
+
+  function el(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  function message(text, error = false) {
+    status.textContent = text;
+    status.classList.toggle('error', error);
+  }
+  async function api(path, options) {
+    const response = await fetch(`${API_BASE}${path}`, options);
+    let payload;
+    try { payload = await response.json(); } catch { payload = {}; }
+    if (!response.ok) throw new Error(payload.detail || `Request failed (${response.status}).`);
+    return payload;
+  }
+  function renderFiles(data) {
+    fileTree.replaceChildren();
+    const folders = new Map();
+    for (const file of data.files) {
+      const parts = file.path.split('/');
+      let parent = fileTree;
+      let prefix = '';
+      for (const folder of parts.slice(0, -1)) {
+        prefix = prefix ? `${prefix}/${folder}` : folder;
+        if (!folders.has(prefix)) {
+          const group = el('div', undefined, 'tree-folder');
+          const label = el('div', `▸ ${folder}`, 'folder-label');
+          group.append(label);
+          const children = el('div', undefined, 'folder-children');
+          group.append(children);
+          parent.append(group);
+          folders.set(prefix, children);
+        }
+        parent = folders.get(prefix);
+      }
+      const isPython = file.type === 'python';
+      const item = el(isPython ? 'button' : 'div', isPython ? `PY  ${parts[parts.length - 1]}` : `·  ${parts[parts.length - 1]}`, isPython ? 'tree-file python-file' : 'tree-file');
+      if (isPython) {
+        item.type = 'button';
+        item.title = file.path;
+        item.addEventListener('click', () => selectFile(file.path));
+        item.dataset.path = file.path;
+      } else item.title = file.path;
+      parent.append(item);
+    }
+    document.querySelector('#file-count').textContent = `${data.files.length} files`;
+  }
+  function renderRelationships(data) {
+    relationships.replaceChildren();
+    document.querySelector('#edge-count').textContent = `${data.edges.length} imports`;
+    if (!data.edges.length) {
+      relationships.append(el('p', 'No internal Python import relationships were resolved.', 'muted'));
+      return;
+    }
+    for (const edge of data.edges) {
+      const row = el('div', undefined, 'relationship-row');
+      row.append(el('code', edge.from));
+      row.append(el('span', '→', 'arrow'));
+      row.append(el('code', edge.to));
+      relationships.append(row);
+    }
+  }
+  function renderWarnings(data) {
+    warnings.replaceChildren();
+    const all = [];
+    for (const warning of data.warnings || []) all.push(`Parser warning — ${warning.file}: ${warning.message}`);
+    for (const item of data.unresolved_imports || []) all.push(`Unresolved import — ${item.file}: ${item.import}${item.line ? ` (line ${item.line})` : ''}`);
+    if (!all.length) warnings.append(el('p', 'No parser warnings or unresolved imports were reported.', 'muted'));
+    else for (const text of all) warnings.append(el('p', text, 'warning-item'));
+    if (!(data.python_files || []).length) warnings.append(el('p', 'No Python files were detected in this archive.', 'warning-item'));
+  }
+  async function selectFile(path) {
+    if (!sessionId) return;
+    document.querySelectorAll('.python-file').forEach(node => node.classList.toggle('active', node.dataset.path === path));
+    selectedName.textContent = path;
+    impactResults.replaceChildren(el('p', 'Calculating dependents…', 'muted'));
+    try {
+      const result = await api('/api/impact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sessionId, selected_file: path }) });
+      impactResults.replaceChildren();
+      const direct = el('section', undefined, 'impact-group');
+      direct.append(el('h3', `Direct dependents (${result.direct_dependents.length})`));
+      appendPaths(direct, result.direct_dependents);
+      const indirect = el('section', undefined, 'impact-group');
+      indirect.append(el('h3', `Indirect dependents (${result.indirect_dependents.length})`));
+      appendPaths(indirect, result.indirect_dependents);
+      impactResults.append(direct, indirect, el('p', result.note, 'muted small'));
+    } catch (error) {
+      impactResults.replaceChildren(el('p', error.message, 'error'));
+    }
+  }
+  function appendPaths(container, items) {
+    if (!items.length) { container.append(el('p', 'None found.', 'muted')); return; }
+    const list = el('ul', undefined, 'path-list');
+    for (const item of items) {
+      const li = el('li');
+      li.append(el('code', item.file));
+      li.append(el('p', item.path.join('  ←  '), 'path-detail'));
+      list.append(li);
+    }
+    container.append(list);
+  }
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const file = input.files && input.files[0];
+    if (!file) { message('Choose a ZIP archive first.', true); return; }
+    if (!file.name.toLowerCase().endsWith('.zip')) { message('Only .zip archives are supported.', true); return; }
+    button.disabled = true;
+    button.textContent = 'Analyzing…';
+    workspace.classList.add('hidden');
+    message('Uploading and parsing the actual project files…');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const data = await api('/api/analyze', { method: 'POST', body });
+      sessionId = data.session_id;
+      currentAnalysis = data;
+      renderFiles(data);
+      renderRelationships(data);
+      renderWarnings(data);
+      workspace.classList.remove('hidden');
+      message(`Analysis complete: ${data.files.length} files scanned, ${data.python_files.length} Python files detected.`);
+      if (data.python_files.length) await selectFile(data.python_files[0]);
+      else { selectedName.textContent = 'No Python file'; impactResults.replaceChildren(el('p', 'Upload a project containing at least one .py file to run impact analysis.', 'muted')); }
+    } catch (error) {
+      message(error.message || 'Could not analyze this archive.', true);
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Analyze project';
+    }
+  });
+})();

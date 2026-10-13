@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Inspect Python imports and explore potential change impact in a project ZIP."><title>RepoPilot Lite â€” Python impact analysis</title><link rel="icon" href="/favicon.ico" type="image/svg+xml"><link rel="stylesheet" href="/static/style.css"></head>
+<body><header class="topbar"><a class="brand" href="/">RepoPilot <span>Lite</span></a><nav><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav></header>
+<main><section class="intro"><p class="eyebrow">STATIC PYTHON ANALYSIS</p><h1>Understand what a code change could affect.</h1><p class="lead">Upload a Python project ZIP to map local imports and trace files that depend on a selected file. Your code is parsed, never executed.</p></section>
+<section class="upload-panel" aria-labelledby="upload-title"><div><h2 id="upload-title">Analyze a project</h2><p class="muted">ZIP only Â· 10 MB upload limit Â· 2,000 entries maximum</p></div><form id="upload-form"><label class="file-label" for="project-zip">Python project ZIP</label><div class="upload-row"><input id="project-zip" name="file" type="file" accept=".zip,application/zip" required><button id="analyze-button" type="submit">Analyze project</button></div><p id="status" class="status" role="status" aria-live="polite">Choose a ZIP archive to begin.</p></form></section>
+<section id="workspace" class="workspace hidden"><aside class="panel explorer"><div class="section-head"><h2>Project files</h2><span id="file-count" class="count">0 files</span></div><p class="muted small">Select a Python file to inspect its impact.</p><div id="file-tree" class="file-tree"></div></aside>
+<div class="main-results"><section class="panel"><div class="section-head"><h2>Detected relationships</h2><span id="edge-count" class="count">0 imports</span></div><p class="muted small">Arrow direction: importer â†’ imported module.</p><div id="relationships" class="relationship-list"></div></section>
+<section class="panel"><div class="section-head"><h2>Change-impact report</h2><span id="selected-name" class="selected-name">No file selected</span></div><p class="muted small">Dependents are files that import the selected file, directly or through another project file.</p><div id="impact-results" class="impact-empty">Select a Python file in the project explorer.</div></section>
+<section class="panel"><div class="section-head"><h2>Dependency Graph</h2><span class="count">Interactive</span></div><p class="muted small">Click a node to inspect its impact. Drag to reposition; scroll to zoom.</p><div class="graph-toolbar"><button type="button" id="graph-fit">Fit graph</button><button type="button" id="graph-reset">Reset layout</button><span class="graph-legend"><span>🔵 Python file</span><span>🟢 Direct impact</span><span>🟣 Indirect impact</span></span></div><div id="dependency-graph" style="height:500px;background:#111827;border-radius:12px"></div>
+<section id="metrics-dashboard" style="margin-top:24px;padding:20px;background:#111827;color:white;border-radius:12px">
+<h2>Code Metrics</h2>
+<div id="metrics-summary"></div>
+<div id="metrics-table"></div>
+</section>
+</section><section class="panel"><h2>Warnings and limitations</h2><div id="warnings" class="warning-list"><p class="muted">Warnings will appear after analysis.</p></div></section></div></section>
+</main><footer><span>RepoPilot Lite Â· Local static analysis</span><span>Potential impact is not proof of a defect.</span></footer><script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script><script src="/static/app.js" defer></script><script src="/static/graph.js" defer></script></body></html>
+
+
+

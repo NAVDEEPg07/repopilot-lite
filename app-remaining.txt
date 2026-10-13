@@ -1,0 +1,48 @@
+﻿      indirect.append(el('h3', `Indirect dependents (${result.indirect_dependents.length})`));
+      appendPaths(indirect, result.indirect_dependents);
+      impactResults.append(direct, indirect, el('p', result.note, 'muted small'));
+    } catch (error) {
+      impactResults.replaceChildren(el('p', error.message, 'error'));
+    }
+  }
+  function appendPaths(container, items) {
+    if (!items.length) { container.append(el('p', 'None found.', 'muted')); return; }
+    const list = el('ul', undefined, 'path-list');
+    for (const item of items) {
+      const li = el('li');
+      li.append(el('code', item.file));
+      li.append(el('p', item.path.join('  â†  '), 'path-detail'));
+      list.append(li);
+    }
+    container.append(list);
+  }
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const file = input.files && input.files[0];
+    if (!file) { message('Choose a ZIP archive first.', true); return; }
+    if (!file.name.toLowerCase().endsWith('.zip')) { message('Only .zip archives are supported.', true); return; }
+    button.disabled = true;
+    button.textContent = 'Analyzingâ€¦';
+    workspace.classList.add('hidden');
+    message('Uploading and parsing the actual project filesâ€¦');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const data = await api('/api/analyze', { method: 'POST', body });
+      sessionId = data.session_id;
+      currentAnalysis = data;
+      renderFiles(data);
+      renderRelationships(data);
+      renderWarnings(data);
+      workspace.classList.remove('hidden');
+      message(`Analysis complete: ${data.files.length} files scanned, ${data.python_files.length} Python files detected.`);
+      if (data.python_files.length) await selectFile(data.python_files[0]);
+      else { selectedName.textContent = 'No Python file'; impactResults.replaceChildren(el('p', 'Upload a project containing at least one .py file to run impact analysis.', 'muted')); }
+    } catch (error) {
+      message(error.message || 'Could not analyze this archive.', true);
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Analyze project';
+    }
+  });
+})();
